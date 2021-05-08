@@ -24,6 +24,11 @@ extern SSD1306Wire  display;
    RGB green means received done;
 */
 
+#define INT_VIBR_GPIO GPIO5
+#define INT_INACTIVE_SAMPLES_BEFORE_SLEEP 3
+uint8_t inactiveSamples = 0;
+uint8_t vibrInterruptActionEnabled = 0;
+
 /* OTAA para*/
 uint8_t devEui[] = DEVICE_EUI;
 uint8_t appEui[] = APP_EUI;
@@ -44,7 +49,7 @@ LoRaMacRegion_t loraWanRegion = ACTIVE_REGION;
 DeviceClass_t  loraWanClass = LORAWAN_CLASS;
 
 /*the application data transmission duty cycle.  value in [ms].*/
-uint32_t appTxDutyCycle = 120000;
+uint32_t appTxDutyCycle = 50000;// 120000;
 
 /*OTAA or ABP*/
 bool overTheAirActivation = LORAWAN_NETMODE;
@@ -330,6 +335,30 @@ static void prepareTxFrame( uint8_t port )
   Serial.println(batteryVoltage);
 }
 
+//Vibration Sensor functions
+void onSamplingInterrupt()
+{
+  if(vibrInterruptActionEnabled != 0){
+    Serial.printf("GPIO interrupt during sampling. Count inactiveSamples reset to zero!\r\n");
+    inactiveSamples = 0;
+  }
+  ClearPinInterrupt(INT_VIBR_GPIO);
+}
+void onLongSleepInterrupt()
+{
+  if(vibrInterruptActionEnabled){
+    //Serial.printf("Woke up by GPIO during long sleep!\r\n");
+    inactiveSamples = 0;
+    detachInterrupt(INT_VIBR_GPIO);
+    
+    // Pick up where we left off?
+    //txDutyCycleTime = 0;
+    //LoRaWAN.cycle(txDutyCycleTime);
+    //deviceState = DEVICE_STATE_SLEEP;
+    deviceState = DEVICE_STATE_SEND; // try this... if problems, do the above.
+  }
+  ClearPinInterrupt(INT_VIBR_GPIO);
+}
 
 void setup() {
   boardInitMcu();
@@ -341,7 +370,13 @@ void setup() {
   LoRaWAN.displayMcuInit();
   deviceState = DEVICE_STATE_INIT;
   LoRaWAN.ifskipjoin();
+
+  //sleep interrupt code
+  pinMode(INT_VIBR_GPIO,INPUT_PULLUP); // https://github.com/HelTecAutomation/CubeCell-Arduino/issues/23
+  digitalWrite(INT_VIBR_GPIO, HIGH);
 }
+
+uint8_t iasTemp = 0;
 
 void loop()
 {
@@ -369,24 +404,52 @@ void loop()
     }
     case DEVICE_STATE_SEND:
     {
+      Serial.printf("DEVICE_STATE_SEND enter (%d)\r\n", inactiveSamples);
+      if(vibrInterruptActionEnabled != 0){
+        vibrInterruptActionEnabled = 0;
+        ClearPinInterrupt(INT_VIBR_GPIO);
+        attachInterrupt(INT_VIBR_GPIO,onSamplingInterrupt,FALLING);
+        break; // let the spurious interrupt pass ineffectively
+      }
+      // fallthrough...
+      vibrInterruptActionEnabled = 1;
+      inactiveSamples++;
+
       prepareTxFrame( appPort );
       LoRaWAN.displaySending();
       LoRaWAN.send();
       deviceState = DEVICE_STATE_CYCLE;
+      Serial.printf("DEVICE_STATE_SEND exit\r\n");
       break;
     }
     case DEVICE_STATE_CYCLE:
     {
+      Serial.printf("DEVICE_STATE_CYCLE enter\r\n");
+      detachInterrupt(INT_VIBR_GPIO);
       // Schedule next packet transmission
-      txDutyCycleTime = appTxDutyCycle + randr( 0, APP_TX_DUTYCYCLE_RND );
-      LoRaWAN.cycle(txDutyCycleTime);
+      if(inactiveSamples >= INT_INACTIVE_SAMPLES_BEFORE_SLEEP){
+        if(vibrInterruptActionEnabled != 0){
+          vibrInterruptActionEnabled = 0;
+          ClearPinInterrupt(INT_VIBR_GPIO);
+          attachInterrupt(INT_VIBR_GPIO,onLongSleepInterrupt,FALLING);
+          Serial.printf("DEVICE_STATE_CYCLE Go around again! (%d, %d)\r\n", inactiveSamples, vibrInterruptActionEnabled);
+          break; // let the spurious interrupt pass ineffectively
+        }
+        vibrInterruptActionEnabled = 1;
+      } else {
+        txDutyCycleTime = appTxDutyCycle + randr( 0, APP_TX_DUTYCYCLE_RND );
+        LoRaWAN.cycle(txDutyCycleTime);
+      }
       deviceState = DEVICE_STATE_SLEEP;
+      Serial.printf("DEVICE_STATE_CYCLE exit\r\n");
       break;
     }
     case DEVICE_STATE_SLEEP:
     {
-      LoRaWAN.displayAck();
+      Serial.printf("DEVICE_STATE_SLEEP enter\r\n");
+      LoRaWAN.displayAck(); //TODO: Move this into the previous block??
       LoRaWAN.sleep();
+      Serial.printf("DEVICE_STATE_SLEEP exit\r\n");
       break;
     }
     default:
