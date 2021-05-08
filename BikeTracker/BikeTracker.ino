@@ -27,7 +27,7 @@ extern SSD1306Wire  display;
 #define INT_VIBR_GPIO GPIO5
 #define INT_INACTIVE_SAMPLES_BEFORE_SLEEP 3
 uint8_t inactiveSamples = 0;
-uint8_t vibrInterruptActionEnabled = 0;
+uint8_t vibrInterruptActionEnabled = 1;
 
 /* OTAA para*/
 uint8_t devEui[] = DEVICE_EUI;
@@ -346,7 +346,7 @@ void onSamplingInterrupt()
 }
 void onLongSleepInterrupt()
 {
-  if(vibrInterruptActionEnabled){
+  if(vibrInterruptActionEnabled != 0){
     //Serial.printf("Woke up by GPIO during long sleep!\r\n");
     inactiveSamples = 0;
     detachInterrupt(INT_VIBR_GPIO);
@@ -405,14 +405,7 @@ void loop()
     case DEVICE_STATE_SEND:
     {
       Serial.printf("DEVICE_STATE_SEND enter (%d)\r\n", inactiveSamples);
-      if(vibrInterruptActionEnabled != 0){
-        vibrInterruptActionEnabled = 0;
-        ClearPinInterrupt(INT_VIBR_GPIO);
-        attachInterrupt(INT_VIBR_GPIO,onSamplingInterrupt,FALLING);
-        break; // let the spurious interrupt pass ineffectively
-      }
-      // fallthrough...
-      vibrInterruptActionEnabled = 1;
+      attachInterrupt(INT_VIBR_GPIO,onSamplingInterrupt,FALLING);
       inactiveSamples++;
 
       prepareTxFrame( appPort );
@@ -425,20 +418,15 @@ void loop()
     case DEVICE_STATE_CYCLE:
     {
       Serial.printf("DEVICE_STATE_CYCLE enter\r\n");
-      detachInterrupt(INT_VIBR_GPIO);
+      detachInterrupt(INT_VIBR_GPIO); // Done sampling
       // Schedule next packet transmission
-      if(inactiveSamples >= INT_INACTIVE_SAMPLES_BEFORE_SLEEP){
-        if(vibrInterruptActionEnabled != 0){
-          vibrInterruptActionEnabled = 0;
-          ClearPinInterrupt(INT_VIBR_GPIO);
-          attachInterrupt(INT_VIBR_GPIO,onLongSleepInterrupt,FALLING);
-          Serial.printf("DEVICE_STATE_CYCLE Go around again! (%d, %d)\r\n", inactiveSamples, vibrInterruptActionEnabled);
-          break; // let the spurious interrupt pass ineffectively
-        }
-        vibrInterruptActionEnabled = 1;
-      } else {
+      if(inactiveSamples < INT_INACTIVE_SAMPLES_BEFORE_SLEEP){
         txDutyCycleTime = appTxDutyCycle + randr( 0, APP_TX_DUTYCYCLE_RND );
         LoRaWAN.cycle(txDutyCycleTime);
+      } else {
+        attachInterrupt(INT_VIBR_GPIO,onLongSleepInterrupt,FALLING);
+        Serial.printf("  Attached onLongSleepInterrupt\r\n");
+        // Don't schedule a timer wakeup/duty cycle
       }
       deviceState = DEVICE_STATE_SLEEP;
       Serial.printf("DEVICE_STATE_CYCLE exit\r\n");
