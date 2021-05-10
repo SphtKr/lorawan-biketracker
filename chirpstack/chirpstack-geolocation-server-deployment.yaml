@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: ./kompose convert
+    kompose.version: 1.22.0 (955b78124)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: chirpstack-geolocation-server
+  name: chirpstack-geolocation-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: chirpstack-geolocation-server
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: ./kompose convert
+        kompose.version: 1.22.0 (955b78124)
+      creationTimestamp: null
+      labels:
+        io.kompose.service: chirpstack-geolocation-server
+    spec:
+      containers:
+        - image: chirpstack/chirpstack-geolocation-server:3
+          name: chirpstack-geolocation-server
+          resources: {}
+          volumeMounts:
+            - mountPath: /etc/chirpstack-geolocation-server
+              name: chirpstack-geolocation-server-claim0
+      restartPolicy: Always
+      volumes:
+        - name: chirpstack-geolocation-server-claim0
+          persistentVolumeClaim:
+            claimName: chirpstack-geolocation-server-claim0
+status: {}

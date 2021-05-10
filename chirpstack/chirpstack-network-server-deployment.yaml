@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: ./kompose convert
+    kompose.version: 1.22.0 (955b78124)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: chirpstack-network-server
+  name: chirpstack-network-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: chirpstack-network-server
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: ./kompose convert
+        kompose.version: 1.22.0 (955b78124)
+      creationTimestamp: null
+      labels:
+        io.kompose.service: chirpstack-network-server
+    spec:
+      containers:
+        - image: chirpstack/chirpstack-network-server:3
+          name: chirpstack-network-server
+          resources: {}
+          volumeMounts:
+            - mountPath: /etc/chirpstack-network-server
+              name: chirpstack-network-server-claim0
+      restartPolicy: Always
+      volumes:
+        - name: chirpstack-network-server-claim0
+          configMap:
+            name: chirpstack-network-server-config
+status: {}
