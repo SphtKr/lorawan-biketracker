@@ -1,16 +1,15 @@
-/* The example is for CubeCell_GPS,
- * GPS works only before lorawan uplink, the board current is about 45uA when in lowpower mode.
- */
 #include "LoRaWan_APP.h"
 #include "Arduino.h"
 #include "GPS_Air530.h"
 #include "cubecell_SSD1306Wire.h"
 
+#include "LoRaWan_Gps_feedback.h"
+
 #include "secrets.h"
 
 extern SSD1306Wire  display; 
 
-//when gps waked, if in GPS_UPDATE_TIMEOUT, gps not fixed then into low power mode
+//when gps wakes, if within GPS_UPDATE_TIMEOUT gps is not fixed then into low power mode
 #define GPS_UPDATE_TIMEOUT 120000
 
 //once fixed, GPS_CONTINUE_TIME later into low power mode
@@ -37,10 +36,10 @@ uint8_t devEui[] = DEVICE_EUI;
 uint8_t appEui[] = APP_EUI;
 uint8_t appKey[] = APP_KEY;
 
-/* ABP para*/
-uint8_t nwkSKey[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-uint8_t appSKey[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-uint32_t devAddr =  ( uint32_t )0x00000000;
+/* ABP para*/ // Not used but expected by external code to be populated here.
+uint8_t nwkSKey[] = NWK_SKEY;
+uint8_t appSKey[] = APP_SKEY;
+uint32_t devAddr =  ( uint32_t )DEV_ADDR;
 
 /*LoraWan channelsmask, default channels 0-7*/ 
 uint16_t userChannelsMask[6]=CHANNEL_MASK;
@@ -90,11 +89,6 @@ uint8_t appPort = 2;
 */
 uint8_t confirmedNbTrials = 4;
 
-int32_t fracPart(double val, int n)
-{
-  return (int32_t)((val - (int32_t)(val))*pow(10,n));
-}
-
 void VextON(void)
 {
   pinMode(Vext,OUTPUT);
@@ -105,94 +99,6 @@ void VextOFF(void) //Vext default OFF
 {
   pinMode(Vext,OUTPUT);
   digitalWrite(Vext, HIGH);
-}
-void displayGPSInof()
-{
-  char str[30];
-  display.clear();
-  display.setFont(ArialMT_Plain_10);
-  int index = sprintf(str,"%02d-%02d-%02d",Air530.date.year(),Air530.date.day(),Air530.date.month());
-  str[index] = 0;
-  display.setTextAlignment(TEXT_ALIGN_LEFT);
-  display.drawString(0, 0, str);
-  
-  index = sprintf(str,"%02d:%02d:%02d",Air530.time.hour(),Air530.time.minute(),Air530.time.second(),Air530.time.centisecond());
-  str[index] = 0;
-  display.drawString(60, 0, str);
-
-  if( Air530.location.age() < 1000 )
-  {
-    display.drawString(120, 0, "A");
-  }
-  else
-  {
-    display.drawString(120, 0, "V");
-  }
-  
-  index = sprintf(str,"alt: %d.%d",(int)Air530.altitude.meters(),fracPart(Air530.altitude.meters(),2));
-  str[index] = 0;
-  display.drawString(0, 16, str);
-   
-  index = sprintf(str,"hdop: %d.%d",(int)Air530.hdop.hdop(),fracPart(Air530.hdop.hdop(),2));
-  str[index] = 0;
-  display.drawString(0, 32, str); 
- 
-  index = sprintf(str,"lat :  %d.%d",(int)Air530.location.lat(),fracPart(Air530.location.lat(),4));
-  str[index] = 0;
-  display.drawString(60, 16, str);   
-  
-  index = sprintf(str,"lon:%d.%d",(int)Air530.location.lng(),fracPart(Air530.location.lng(),4));
-  str[index] = 0;
-  display.drawString(60, 32, str);
-
-  index = sprintf(str,"speed: %d.%d km/h",(int)Air530.speed.kmph(),fracPart(Air530.speed.kmph(),3));
-  str[index] = 0;
-  display.drawString(0, 48, str);
-  display.display();
-}
-
-void printGPSInof()
-{
-  Serial.print("Date/Time: ");
-  if (Air530.date.isValid())
-  {
-    Serial.printf("%d/%02d/%02d",Air530.date.year(),Air530.date.day(),Air530.date.month());
-  }
-  else
-  {
-    Serial.print("INVALID");
-  }
-
-  if (Air530.time.isValid())
-  {
-    Serial.printf(" %02d:%02d:%02d.%02d",Air530.time.hour(),Air530.time.minute(),Air530.time.second(),Air530.time.centisecond());
-  }
-  else
-  {
-    Serial.print(" INVALID");
-  }
-  Serial.println();
-  
-  Serial.print("LAT: ");
-  Serial.print(Air530.location.lat(),6);
-  Serial.print(", LON: ");
-  Serial.print(Air530.location.lng(),6);
-  Serial.print(", ALT: ");
-  Serial.print(Air530.altitude.meters());
-
-  Serial.println(); 
-  
-  Serial.print("SATS: ");
-  Serial.print(Air530.satellites.value());
-  Serial.print(", HDOP: ");
-  Serial.print(Air530.hdop.hdop());
-  Serial.print(", AGE: ");
-  Serial.print(Air530.location.age());
-  Serial.print(", COURSE: ");
-  Serial.print(Air530.course.deg());
-  Serial.print(", SPEED: ");
-  Serial.println(Air530.speed.kmph());
-  Serial.println();
 }
 
 // Much of this is based on the example code provided with the HTCC-AB02S,
@@ -253,8 +159,8 @@ static void prepareTxFrame( uint8_t port )
       if( (millis()-start) > printinfo )
       {
         printinfo += 1000;
-        printGPSInof();
-        displayGPSInof();
+        printGPSInfo();
+        displayGPSInfo();
       }
     }
   }

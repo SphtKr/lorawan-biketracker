@@ -1,0 +1,3 @@
+void displayGPSInfo();
+
+void printGPSInfo();
