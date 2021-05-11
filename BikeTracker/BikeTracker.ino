@@ -421,7 +421,9 @@ void loop()
       Serial.printf("DEVICE_STATE_SEND enter (%d)\r\n", inactiveSamples);
       attachInterrupt(INT_VIBR_GPIO,onSamplingInterrupt,FALLING);
       inactiveSamples++;
-
+      if(inactiveSamples >= INT_INACTIVE_SAMPLES_BEFORE_SLEEP && resetShocksOnInactivity){
+        shocks = 0;
+      }
       prepareTxFrame( appPort );
       LoRaWAN.displaySending();
       LoRaWAN.send();
@@ -440,9 +442,6 @@ void loop()
       } else {
         attachInterrupt(INT_VIBR_GPIO,onLongSleepInterrupt,FALLING);
         Serial.printf("  Attached onLongSleepInterrupt\r\n");
-        if(resetShocksOnInactivity){
-          shocks = 0;
-        }
         // Don't schedule a timer wakeup/duty cycle
       }
       deviceState = DEVICE_STATE_SLEEP;
