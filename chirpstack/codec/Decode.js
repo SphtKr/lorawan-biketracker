@@ -1,4 +1,5 @@
 function Decode(fPort, bytes, variables) {
+
   // Based on https://www.thethingsnetwork.org/forum/t/another-payload-decoder-question-issues-converting-bytes-to-float/43879
   // Based on https://stackoverflow.com/a/37471538 by Ilya Bursov
   function bytesToFloat(bytes) {
@@ -11,15 +12,18 @@ function Decode(fPort, bytes, variables) {
     var f = sign * m * Math.pow(2, e - 150);
     return f;
   } 
-  var hdop = bytesToFloat(bytes.slice(20,24));
-  var battery_raw = bytes[24]*256+bytes[25]
+
+  var hdop = bytesToFloat(bytes.slice(12,16));
+  var inactive_samples = bytes[16];
+  var shocks = bytes[17];
+  var battery_raw = bytes[18]*256+bytes[19]
   return {
     "latitude": bytesToFloat(bytes.slice(0,4)),
   	"longitude": bytesToFloat(bytes.slice(4,8)),
     "altitude": bytesToFloat(bytes.slice(8,12)),
-    "course": bytesToFloat(bytes.slice(12,16)),
-    "speed": bytesToFloat(bytes.slice(16,20)),
     "hdop": hdop,
+    "inactive_samples": inactive_samples,
+    "shocks": shocks, 
     "battery_raw": battery_raw,
     "battery_level": 100*(battery_raw-2480)/(4108-2480),
     "gps_accuracy": 6*hdop // Real calculation of this needs more info, this one based on Wikipedia

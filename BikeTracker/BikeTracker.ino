@@ -25,9 +25,12 @@ extern SSD1306Wire  display;
 */
 
 #define INT_VIBR_GPIO GPIO5
+#define INT_SHOCK_GPIO GPIO6
 #define INT_INACTIVE_SAMPLES_BEFORE_SLEEP 3
 uint8_t inactiveSamples = 0;
 uint8_t vibrInterruptActionEnabled = 1;
+bool resetShocksOnInactivity = true;
+uint8_t shocks = 0;
 
 /* OTAA para*/
 uint8_t devEui[] = DEVICE_EUI;
@@ -192,6 +195,8 @@ void printGPSInof()
   Serial.println();
 }
 
+// Much of this is based on the example code provided with the HTCC-AB02S,
+// with mainly some data payload changes.
 static void prepareTxFrame( uint8_t port )
 {
   /*appData size is LORAWAN_APP_DATA_MAX_SIZE which is defined in "commissioning.h".
@@ -202,7 +207,7 @@ static void prepareTxFrame( uint8_t port )
     the max value for different DR can be found in MaxPayloadOfDatarateCN470 refer to DataratesCN470 and BandwidthsCN470 in "RegionCN470.h".
   */
 
-  float lat, lon, alt, course, speed, hdop, sats;
+  float lat, lon, alt, hdop, sats;
   
   Serial.println("Waiting for GPS FIX ...");
 
@@ -272,8 +277,6 @@ static void prepareTxFrame( uint8_t port )
   lat = Air530.location.lat();
   lon = Air530.location.lng();
   alt = Air530.altitude.meters();
-  course = Air530.course.deg();
-  speed = Air530.speed.kmph();
   sats = Air530.satellites.value();
   hdop = Air530.hdop.hdop();
 
@@ -297,21 +300,13 @@ static void prepareTxFrame( uint8_t port )
   appData[appDataSize++] = puc[1];
   appData[appDataSize++] = puc[2];
   appData[appDataSize++] = puc[3];
-  puc = (unsigned char *)(&course);
-  appData[appDataSize++] = puc[0];
-  appData[appDataSize++] = puc[1];
-  appData[appDataSize++] = puc[2];
-  appData[appDataSize++] = puc[3];
-  puc = (unsigned char *)(&speed);
-  appData[appDataSize++] = puc[0];
-  appData[appDataSize++] = puc[1];
-  appData[appDataSize++] = puc[2];
-  appData[appDataSize++] = puc[3];
   puc = (unsigned char *)(&hdop);
   appData[appDataSize++] = puc[0];
   appData[appDataSize++] = puc[1];
   appData[appDataSize++] = puc[2];
   appData[appDataSize++] = puc[3];
+  appData[appDataSize++] = inactiveSamples;
+  appData[appDataSize++] = shocks;
   appData[appDataSize++] = (uint8_t)(batteryVoltage >> 8);
   appData[appDataSize++] = (uint8_t)batteryVoltage;
 
@@ -335,11 +330,27 @@ static void prepareTxFrame( uint8_t port )
   Serial.println(batteryVoltage);
 }
 
+// Shock Sensor functions
+void onShockInterrupt()
+{
+  shocks++;
+  inactiveSamples = 0;
+  if(deviceState == DEVICE_STATE_SLEEP){
+    deviceState = DEVICE_STATE_SEND;
+  } else if(deviceState == DEVICE_STATE_SEND || deviceState == DEVICE_STATE_CYCLE){
+    LoRaWAN.cycle(1); // restart the send cycle ASAP
+    // ^ Actually this seems bad... causes frame count increment errors, at least
+    //   if it happens at the wrong point in the state machine.
+  } //TODO: Any corner cases where we could fall into a hole here?
+  ClearPinInterrupt(INT_SHOCK_GPIO);
+  //Serial.printf("Shock interrupt! shocks: %d\r\n", shocks);
+}
+
 //Vibration Sensor functions
 void onSamplingInterrupt()
 {
   if(vibrInterruptActionEnabled != 0){
-    Serial.printf("GPIO interrupt during sampling. Count inactiveSamples reset to zero!\r\n");
+    //Serial.printf("GPIO interrupt during sampling. Count inactiveSamples reset to zero!\r\n");
     inactiveSamples = 0;
   }
   ClearPinInterrupt(INT_VIBR_GPIO);
@@ -374,6 +385,9 @@ void setup() {
   //sleep interrupt code
   pinMode(INT_VIBR_GPIO,INPUT_PULLUP); // https://github.com/HelTecAutomation/CubeCell-Arduino/issues/23
   digitalWrite(INT_VIBR_GPIO, HIGH);
+  pinMode(INT_SHOCK_GPIO,INPUT_PULLUP);
+  digitalWrite(INT_SHOCK_GPIO, HIGH);
+  attachInterrupt(INT_SHOCK_GPIO,onShockInterrupt,FALLING);
 }
 
 uint8_t iasTemp = 0;
@@ -426,6 +440,9 @@ void loop()
       } else {
         attachInterrupt(INT_VIBR_GPIO,onLongSleepInterrupt,FALLING);
         Serial.printf("  Attached onLongSleepInterrupt\r\n");
+        if(resetShocksOnInactivity){
+          shocks = 0;
+        }
         // Don't schedule a timer wakeup/duty cycle
       }
       deviceState = DEVICE_STATE_SLEEP;
