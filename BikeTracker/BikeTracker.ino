@@ -7,13 +7,11 @@
 
 #include "secrets.h"
 
-extern SSD1306Wire  display; 
-
 //when gps wakes, if within GPS_UPDATE_TIMEOUT gps is not fixed then into low power mode
 #define GPS_UPDATE_TIMEOUT 120000
 
 //once fixed, GPS_CONTINUE_TIME later into low power mode
-#define GPS_CONTINUE_TIME 10000
+#define GPS_CONTINUE_TIME 1000
 /*
    set LoraWan_RGB to Active,the RGB active in loraWan
    RGB red means sending;
@@ -117,16 +115,7 @@ static void prepareTxFrame( uint8_t port )
   
   Serial.println("Waiting for GPS FIX ...");
 
-  VextON();// oled power on;
-  delay(10); 
-  display.init();
-  display.clear();
-      
-  display.setTextAlignment(TEXT_ALIGN_CENTER);
-  display.setFont(ArialMT_Plain_16);
-  display.drawString(64, 32-16/2, "GPS Searching...");
   Serial.println("GPS Searching...");
-  display.display();
   
   Air530.begin();
 
@@ -137,7 +126,7 @@ static void prepareTxFrame( uint8_t port )
     {
       Air530.encode(Air530.read());
     }
-   // gps fixed in a second
+    // gps fixed in a second
     if( Air530.location.age() < 1000 )
     {
       break;
@@ -160,25 +149,15 @@ static void prepareTxFrame( uint8_t port )
       {
         printinfo += 1000;
         printGPSInfo();
-        displayGPSInfo();
       }
     }
   }
   else
   {
-    display.clear();  
-    display.setTextAlignment(TEXT_ALIGN_CENTER);
-    display.setFont(ArialMT_Plain_16);
-    display.drawString(64, 32-16/2, "No GPS signal");
     Serial.println("No GPS signal");
-    display.display();
-    delay(2000);
+    //delay(2000);
   }
   Air530.end(); 
-  display.clear();
-  display.display();
-  display.stop();
-  VextOFF(); //oled power off
   
   lat = Air530.location.lat();
   lon = Air530.location.lng();
@@ -216,22 +195,6 @@ static void prepareTxFrame( uint8_t port )
   appData[appDataSize++] = (uint8_t)(batteryVoltage >> 8);
   appData[appDataSize++] = (uint8_t)batteryVoltage;
 
-  Serial.print("SATS: ");
-  Serial.print(Air530.satellites.value());
-  Serial.print(", HDOP: ");
-  Serial.print(Air530.hdop.hdop());
-  Serial.print(", LAT: ");
-  Serial.print(Air530.location.lat());
-  Serial.print(", LON: ");
-  Serial.print(Air530.location.lng());
-  Serial.print(", AGE: ");
-  Serial.print(Air530.location.age());
-  Serial.print(", ALT: ");
-  Serial.print(Air530.altitude.meters());
-  Serial.print(", COURSE: ");
-  Serial.print(Air530.course.deg());
-  Serial.print(", SPEED: ");
-  Serial.println(Air530.speed.kmph());
   Serial.print(" BatteryVoltage:");
   Serial.println(batteryVoltage);
 }

@@ -91,6 +91,8 @@ void printGPSInfo()
   Serial.print(Air530.hdop.hdop());
   Serial.print(", AGE: ");
   Serial.print(Air530.location.age());
+  Serial.print(", ALT: ");
+  Serial.print(Air530.altitude.meters());
   Serial.print(", COURSE: ");
   Serial.print(Air530.course.deg());
   Serial.print(", SPEED: ");
