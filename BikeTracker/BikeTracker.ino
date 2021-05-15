@@ -247,7 +247,6 @@ void setup() {
 #if(AT_SUPPORT)
   enableAt();
 #endif
-  LoRaWAN.displayMcuInit();
   deviceState = DEVICE_STATE_INIT;
   LoRaWAN.ifskipjoin();
 
@@ -281,7 +280,6 @@ void loop()
     }
     case DEVICE_STATE_JOIN:
     {
-      LoRaWAN.displayJoining();
       LoRaWAN.join();
       break;
     }
@@ -294,7 +292,6 @@ void loop()
         shocks = 0;
       }
       prepareTxFrame( appPort );
-      LoRaWAN.displaySending();
       LoRaWAN.send();
       deviceState = DEVICE_STATE_CYCLE;
       Serial.printf("DEVICE_STATE_SEND exit\r\n");
@@ -320,7 +317,6 @@ void loop()
     case DEVICE_STATE_SLEEP:
     {
       Serial.printf("DEVICE_STATE_SLEEP enter\r\n");
-      LoRaWAN.displayAck(); //TODO: Move this into the previous block??
       LoRaWAN.sleep();
       Serial.printf("DEVICE_STATE_SLEEP exit\r\n");
       break;
