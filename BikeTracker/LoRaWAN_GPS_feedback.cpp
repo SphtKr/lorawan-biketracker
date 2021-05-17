@@ -1,8 +1,10 @@
 #include "Arduino.h"
 #include "GPS_Air530.h"
 #include "cubecell_SSD1306Wire.h"
+#include "secrets.h"
 
 extern SSD1306Wire  display; 
+
 
 int32_t fracPart(double val, int n)
 {
@@ -40,11 +42,11 @@ void displayGPSInfo()
   str[index] = 0;
   display.drawString(0, 32, str); 
  
-  index = sprintf(str,"lat :  %d.%d",(int)Air530.location.lat(),fracPart(Air530.location.lat(),4));
+  index = sprintf(str,"lat :  %d.%d",(int)(Air530.location.lat()+GPS_LAT_OFFSET),fracPart(Air530.location.lat()+GPS_LAT_OFFSET,4));
   str[index] = 0;
   display.drawString(60, 16, str);   
   
-  index = sprintf(str,"lon:%d.%d",(int)Air530.location.lng(),fracPart(Air530.location.lng(),4));
+  index = sprintf(str,"lon:%d.%d",(int)(Air530.location.lng() + GPS_LON_OFFSET),fracPart(Air530.location.lng()+GPS_LON_OFFSET,4));
   str[index] = 0;
   display.drawString(60, 32, str);
 
@@ -77,9 +79,9 @@ void printGPSInfo()
   Serial.println();
   
   Serial.print("LAT: ");
-  Serial.print(Air530.location.lat(),6);
+  Serial.print(Air530.location.lat()+GPS_LAT_OFFSET,6);
   Serial.print(", LON: ");
-  Serial.print(Air530.location.lng(),6);
+  Serial.print(Air530.location.lng()+GPS_LON_OFFSET,6);
   Serial.print(", ALT: ");
   Serial.print(Air530.altitude.meters());
 
