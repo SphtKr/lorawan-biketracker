@@ -1,0 +1,13 @@
+id: 'bt-tracker-00-mqtt-transform'
+alias: Auto BikeTracker00 Transform
+description: ''
+trigger:
+  - platform: mqtt
+    topic: application/1/device/_yourdeviceidhere_/event/up
+condition: []
+action:
+  - service: mqtt.publish
+    data:
+      payload: '{{ trigger.payload_json[''objectJSON''] }}'
+      topic: location/bike_tracker_00
+mode: single

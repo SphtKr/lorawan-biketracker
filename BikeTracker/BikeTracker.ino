@@ -23,7 +23,7 @@
 
 #define INT_VIBR_GPIO GPIO5
 #define INT_SHOCK_GPIO GPIO6
-#define INT_INACTIVE_SAMPLES_BEFORE_SLEEP 3
+#define INT_INACTIVE_SAMPLES_BEFORE_SLEEP 4
 uint8_t inactiveSamples = 0;
 uint8_t vibrInterruptActionEnabled = 1;
 bool resetShocksOnInactivity = true;
@@ -49,7 +49,7 @@ LoRaMacRegion_t loraWanRegion = ACTIVE_REGION;
 DeviceClass_t  loraWanClass = LORAWAN_CLASS;
 
 /*the application data transmission duty cycle.  value in [ms].*/
-uint32_t appTxDutyCycle = 50000;// 120000;
+uint32_t appTxDutyCycle = 120000;
 
 /*OTAA or ABP*/
 bool overTheAirActivation = LORAWAN_NETMODE;
@@ -159,8 +159,8 @@ static void prepareTxFrame( uint8_t port )
   }
   Air530.end(); 
   
-  lat = Air530.location.lat();
-  lon = Air530.location.lng();
+  lat = Air530.location.lat() + GPS_LAT_OFFSET;
+  lon = Air530.location.lng() + GPS_LON_OFFSET;
   alt = Air530.altitude.meters();
   sats = Air530.satellites.value();
   hdop = Air530.hdop.hdop();
@@ -285,7 +285,7 @@ void loop()
     }
     case DEVICE_STATE_SEND:
     {
-      Serial.printf("DEVICE_STATE_SEND enter (%d)\r\n", inactiveSamples);
+      VextON();
       attachInterrupt(INT_VIBR_GPIO,onSamplingInterrupt,FALLING);
       inactiveSamples++;
       if(inactiveSamples >= INT_INACTIVE_SAMPLES_BEFORE_SLEEP && resetShocksOnInactivity){
@@ -294,31 +294,28 @@ void loop()
       prepareTxFrame( appPort );
       LoRaWAN.send();
       deviceState = DEVICE_STATE_CYCLE;
-      Serial.printf("DEVICE_STATE_SEND exit\r\n");
       break;
     }
     case DEVICE_STATE_CYCLE:
     {
-      Serial.printf("DEVICE_STATE_CYCLE enter\r\n");
       detachInterrupt(INT_VIBR_GPIO); // Done sampling
       // Schedule next packet transmission
       if(inactiveSamples < INT_INACTIVE_SAMPLES_BEFORE_SLEEP){
         txDutyCycleTime = appTxDutyCycle + randr( 0, APP_TX_DUTYCYCLE_RND );
         LoRaWAN.cycle(txDutyCycleTime);
       } else {
+        VextOFF();
+        delay(10);
         attachInterrupt(INT_VIBR_GPIO,onLongSleepInterrupt,FALLING);
         Serial.printf("  Attached onLongSleepInterrupt\r\n");
         // Don't schedule a timer wakeup/duty cycle
       }
       deviceState = DEVICE_STATE_SLEEP;
-      Serial.printf("DEVICE_STATE_CYCLE exit\r\n");
       break;
     }
     case DEVICE_STATE_SLEEP:
     {
-      Serial.printf("DEVICE_STATE_SLEEP enter\r\n");
       LoRaWAN.sleep();
-      Serial.printf("DEVICE_STATE_SLEEP exit\r\n");
       break;
     }
     default:
